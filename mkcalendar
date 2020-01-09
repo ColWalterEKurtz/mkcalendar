@@ -1,0 +1,548 @@
+#!/bin/bash
+
+# ------------------------------------------------------------------------------
+# settings                                                              settings
+# ------------------------------------------------------------------------------
+set -o errexit   # exit immediately if a command exits with a non-zero status
+set -o errtrace  # any trap on ERR is inherited by shell functions,
+                 #   command substitutions, and commands executed in a subshell
+                 #   environment
+set -o nounset   # treat unset variables and parameters other than the special
+                 #   parameters "@" and "*" as an error when performing
+                 #   parameter expansion
+set -o pipefail  # the return value of a pipeline is the value of the last
+                 #   (rightmost) command to exit with a non-zero status, or
+                 #   zero if all commands in the pipeline exit successfully
+
+# set language
+export LANG="de_DE.UTF-8"
+
+# use dot as decimal separator
+export LC_NUMERIC="en_US.UTF-8"
+
+# terminal colors
+readonly    NONE=$(tput sgr0)
+readonly     RED=$(tput setaf 1)
+readonly   GREEN=$(tput setaf 2)
+readonly  YELLOW=$(tput setaf 3)
+readonly    BLUE=$(tput setaf 4)
+readonly MAGENTA=$(tput setaf 5)
+readonly    CYAN=$(tput setaf 6)
+readonly   WHITE=$(tput setaf 7)
+
+# ------------------------------------------------------------------------------
+# functions                                                            functions
+# ------------------------------------------------------------------------------
+
+# -------
+# failmsg
+# -------
+#
+# This function prints a red colored message via stderr.
+#
+function failmsg()
+{
+  # push to stderr
+  echo -e "${RED}[FAIL]${NONE} $1" 1>&2
+}
+
+# -------
+# warnmsg
+# -------
+#
+# This function prints a yellow colored message via stderr.
+#
+function warnmsg()
+{
+  # push to stderr
+  echo -e "${YELLOW}[WARN]${NONE} $1" 1>&2
+}
+
+# -------
+# infomsg
+# -------
+#
+# This function prints a blue colored message via stderr.
+#
+function infomsg()
+{
+  # push to stderr
+  echo -e "${BLUE}[INFO]${NONE} $1" 1>&2
+}
+
+# -------
+# donemsg
+# -------
+#
+# This function prints a green colored message via stderr.
+#
+function donemsg()
+{
+  # push to stderr
+  echo -e "${GREEN}[DONE]${NONE} $1" 1>&2
+}
+
+# ------------------------------------------------------------------------------
+# options                                                                options
+# ------------------------------------------------------------------------------
+
+# set default values
+LOOPDATE=$(date +%F)
+STOPDATE=$(date -d "$LOOPDATE" +"%Y-12-31")
+
+# set options to accept
+readonly KNOWN_OPTIONS=":b:e:"
+
+# check passed options
+while getopts "$KNOWN_OPTIONS" OPTION "$@"
+do
+
+  case "$OPTION" in
+
+    # set first date
+    "b") LOOPDATE=$(date -d "$OPTARG" +%F)
+         ;;
+
+    # set last date
+    "e") STOPDATE=$(date -d "$OPTARG" +%F)
+         ;;
+
+    "?") failmsg "unknown option: -$OPTARG"
+         exit 1
+         ;;
+
+    ":") failmsg "missing argument: -$OPTARG <argument>"
+         exit 1
+         ;;
+
+  esac
+
+done
+
+# get number of positional parameters
+PPNUM=$(( $# - OPTIND + 1 ))
+
+# check number of positional parameters
+if (( PPNUM > 0 )) ; then
+
+  # notify user
+  failmsg "no positional parameters allowed"
+
+  # signalize trouble
+  exit 1
+
+fi
+
+# ------------------------------------------------------------------------------
+# commands                                                              commands
+# ------------------------------------------------------------------------------
+
+echo "% template and global options"
+echo "\\documentclass"
+echo "["
+echo "  draft    = true,"
+echo "  fontsize = 11pt,"
+echo "  parskip  = half-,"
+echo "  BCOR     = 0pt,"
+echo "  ngerman,"
+echo "  dvipsnames,"
+echo "  ngerman"
+echo "]"
+echo "{scrartcl}"
+echo
+echo "% geometry"
+echo "\\usepackage"
+echo "["
+echo "  top    = 2cm,"
+echo "  left   = 1cm,"
+echo "  right  = 1cm,"
+echo "  bottom = 1cm,"
+echo "  landscape"
+echo "]"
+echo "{geometry}"
+echo
+echo "% default packages"
+echo "\\usepackage[utf8]{inputenc}"
+echo "\\usepackage[T1]{fontenc}"
+echo "\\usepackage{lmodern}"
+echo "\\usepackage{babel}"
+echo "% extra packages"
+echo "\\usepackage{amsmath}"
+echo "\\usepackage{amssymb}"
+echo "\\usepackage{enumerate}"
+echo "\\usepackage{eurosym}"
+echo "\\usepackage{graphicx}"
+echo "\\usepackage{ifthen}"
+echo "\\usepackage{siunitx}"
+echo "\\usepackage{tikz}"
+echo "\\usepackage{xcolor}"
+echo "% libraries"
+echo "\\usetikzlibrary{calc}"
+echo
+echo "% use comma as decimal separator"
+echo "\\sisetup{locale=DE, group-minimum-digits=4}"
+echo
+echo "% no page numbers"
+echo "\\pagestyle{empty}"
+echo
+echo "% -------"
+echo "% squeeze"
+echo "% -------"
+echo "%"
+echo "% This command squeezes itemize and enumerate environments."
+echo "%"
+echo "% [#1]  leftskip"
+echo "%"
+echo "\\newcommand{\\squeeze}[1][\\the\\leftskip]"
+echo "{%"
+echo "  % shift horizontically"
+echo "  \\setlength{\\leftskip}{#1}%"
+echo "  % squeeze vertically"
+echo "  \\renewcommand{\\itemsep}{-1ex}%"
+echo "}"
+echo
+echo "% ----"
+echo "% grid"
+echo "% ----"
+echo "%"
+echo "% This environment typesets the grid of 21 days."
+echo "%"
+echo "% [#1]  leftskip"
+echo "%"
+echo "\\newenvironment{grid}"
+echo "{%"
+echo "  \\begingroup"
+echo "    % default dates"
+echo "    \\newcommand{\\dateA}{\\relax}%"
+echo "    \\newcommand{\\dateB}{\\relax}%"
+echo "    \\newcommand{\\dateC}{\\relax}%"
+echo "    \\newcommand{\\dateD}{\\relax}%"
+echo "    \\newcommand{\\dateE}{\\relax}%"
+echo "    \\newcommand{\\dateF}{\\relax}%"
+echo "    \\newcommand{\\dateG}{\\relax}%"
+echo "    \\newcommand{\\dateH}{\\relax}%"
+echo "    \\newcommand{\\dateI}{\\relax}%"
+echo "    \\newcommand{\\dateJ}{\\relax}%"
+echo "    \\newcommand{\\dateK}{\\relax}%"
+echo "    \\newcommand{\\dateL}{\\relax}%"
+echo "    \\newcommand{\\dateM}{\\relax}%"
+echo "    \\newcommand{\\dateN}{\\relax}%"
+echo "    \\newcommand{\\dateO}{\\relax}%"
+echo "    \\newcommand{\\dateP}{\\relax}%"
+echo "    \\newcommand{\\dateQ}{\\relax}%"
+echo "    \\newcommand{\\dateR}{\\relax}%"
+echo "    \\newcommand{\\dateS}{\\relax}%"
+echo "    \\newcommand{\\dateT}{\\relax}%"
+echo "    \\newcommand{\\dateU}{\\relax}%"
+echo "    % default holidays"
+echo "    \\newcommand{\\holidayA}{\\relax}%"
+echo "    \\newcommand{\\holidayB}{\\relax}%"
+echo "    \\newcommand{\\holidayC}{\\relax}%"
+echo "    \\newcommand{\\holidayD}{\\relax}%"
+echo "    \\newcommand{\\holidayE}{\\relax}%"
+echo "    \\newcommand{\\holidayF}{\\relax}%"
+echo "    \\newcommand{\\holidayG}{\\relax}%"
+echo "    \\newcommand{\\holidayH}{\\relax}%"
+echo "    \\newcommand{\\holidayI}{\\relax}%"
+echo "    \\newcommand{\\holidayJ}{\\relax}%"
+echo "    \\newcommand{\\holidayK}{\\relax}%"
+echo "    \\newcommand{\\holidayL}{\\relax}%"
+echo "    \\newcommand{\\holidayM}{\\relax}%"
+echo "    \\newcommand{\\holidayN}{\\relax}%"
+echo "    \\newcommand{\\holidayO}{\\relax}%"
+echo "    \\newcommand{\\holidayP}{\\relax}%"
+echo "    \\newcommand{\\holidayQ}{\\relax}%"
+echo "    \\newcommand{\\holidayR}{\\relax}%"
+echo "    \\newcommand{\\holidayS}{\\relax}%"
+echo "    \\newcommand{\\holidayT}{\\relax}%"
+echo "    \\newcommand{\\holidayU}{\\relax}%"
+echo "    % default appointments"
+echo "    \\newcommand{\\appointmentA}{\\relax}%"
+echo "    \\newcommand{\\appointmentB}{\\relax}%"
+echo "    \\newcommand{\\appointmentC}{\\relax}%"
+echo "    \\newcommand{\\appointmentD}{\\relax}%"
+echo "    \\newcommand{\\appointmentE}{\\relax}%"
+echo "    \\newcommand{\\appointmentF}{\\relax}%"
+echo "    \\newcommand{\\appointmentG}{\\relax}%"
+echo "    \\newcommand{\\appointmentH}{\\relax}%"
+echo "    \\newcommand{\\appointmentI}{\\relax}%"
+echo "    \\newcommand{\\appointmentJ}{\\relax}%"
+echo "    \\newcommand{\\appointmentK}{\\relax}%"
+echo "    \\newcommand{\\appointmentL}{\\relax}%"
+echo "    \\newcommand{\\appointmentM}{\\relax}%"
+echo "    \\newcommand{\\appointmentN}{\\relax}%"
+echo "    \\newcommand{\\appointmentO}{\\relax}%"
+echo "    \\newcommand{\\appointmentP}{\\relax}%"
+echo "    \\newcommand{\\appointmentQ}{\\relax}%"
+echo "    \\newcommand{\\appointmentR}{\\relax}%"
+echo "    \\newcommand{\\appointmentS}{\\relax}%"
+echo "    \\newcommand{\\appointmentT}{\\relax}%"
+echo "    \\newcommand{\\appointmentU}{\\relax}%"
+echo "    % default background"
+echo "    \\newcommand{\\backgroundA}{white}%"
+echo "    \\newcommand{\\backgroundB}{white}%"
+echo "    \\newcommand{\\backgroundC}{white}%"
+echo "    \\newcommand{\\backgroundD}{white}%"
+echo "    \\newcommand{\\backgroundE}{white}%"
+echo "    \\newcommand{\\backgroundF}{white}%"
+echo "    \\newcommand{\\backgroundG}{white}%"
+echo "    \\newcommand{\\backgroundH}{white}%"
+echo "    \\newcommand{\\backgroundI}{white}%"
+echo "    \\newcommand{\\backgroundJ}{white}%"
+echo "    \\newcommand{\\backgroundK}{white}%"
+echo "    \\newcommand{\\backgroundL}{white}%"
+echo "    \\newcommand{\\backgroundM}{white}%"
+echo "    \\newcommand{\\backgroundN}{white}%"
+echo "    \\newcommand{\\backgroundO}{white}%"
+echo "    \\newcommand{\\backgroundP}{white}%"
+echo "    \\newcommand{\\backgroundQ}{white}%"
+echo "    \\newcommand{\\backgroundR}{white}%"
+echo "    \\newcommand{\\backgroundS}{white}%"
+echo "    \\newcommand{\\backgroundT}{white}%"
+echo "    \\newcommand{\\backgroundU}{white}%"
+echo "}%"
+echo "{%"
+echo "    \\begin{tikzpicture}%"
+echo "      % colors"
+echo "      \\fill[fill=\\backgroundA] (0\\colw+\\firstcol, 6\\rowh) rectangle (1\\colw+\\firstcol, 7\\rowh);"
+echo "      \\fill[fill=\\backgroundB] (0\\colw+\\firstcol, 5\\rowh) rectangle (1\\colw+\\firstcol, 6\\rowh);"
+echo "      \\fill[fill=\\backgroundC] (0\\colw+\\firstcol, 4\\rowh) rectangle (1\\colw+\\firstcol, 5\\rowh);"
+echo "      \\fill[fill=\\backgroundD] (0\\colw+\\firstcol, 3\\rowh) rectangle (1\\colw+\\firstcol, 4\\rowh);"
+echo "      \\fill[fill=\\backgroundE] (0\\colw+\\firstcol, 2\\rowh) rectangle (1\\colw+\\firstcol, 3\\rowh);"
+echo "      \\fill[fill=\\backgroundF] (0\\colw+\\firstcol, 1\\rowh) rectangle (1\\colw+\\firstcol, 2\\rowh);"
+echo "      \\fill[fill=\\backgroundG] (0\\colw+\\firstcol, 0\\rowh) rectangle (1\\colw+\\firstcol, 1\\rowh);"
+echo "      \\fill[fill=\\backgroundH] (1\\colw+\\firstcol, 6\\rowh) rectangle (2\\colw+\\firstcol, 7\\rowh);"
+echo "      \\fill[fill=\\backgroundI] (1\\colw+\\firstcol, 5\\rowh) rectangle (2\\colw+\\firstcol, 6\\rowh);"
+echo "      \\fill[fill=\\backgroundJ] (1\\colw+\\firstcol, 4\\rowh) rectangle (2\\colw+\\firstcol, 5\\rowh);"
+echo "      \\fill[fill=\\backgroundK] (1\\colw+\\firstcol, 3\\rowh) rectangle (2\\colw+\\firstcol, 4\\rowh);"
+echo "      \\fill[fill=\\backgroundL] (1\\colw+\\firstcol, 2\\rowh) rectangle (2\\colw+\\firstcol, 3\\rowh);"
+echo "      \\fill[fill=\\backgroundM] (1\\colw+\\firstcol, 1\\rowh) rectangle (2\\colw+\\firstcol, 2\\rowh);"
+echo "      \\fill[fill=\\backgroundN] (1\\colw+\\firstcol, 0\\rowh) rectangle (2\\colw+\\firstcol, 1\\rowh);"
+echo "      \\fill[fill=\\backgroundO] (2\\colw+\\firstcol, 6\\rowh) rectangle (3\\colw+\\firstcol, 7\\rowh);"
+echo "      \\fill[fill=\\backgroundP] (2\\colw+\\firstcol, 5\\rowh) rectangle (3\\colw+\\firstcol, 6\\rowh);"
+echo "      \\fill[fill=\\backgroundQ] (2\\colw+\\firstcol, 4\\rowh) rectangle (3\\colw+\\firstcol, 5\\rowh);"
+echo "      \\fill[fill=\\backgroundR] (2\\colw+\\firstcol, 3\\rowh) rectangle (3\\colw+\\firstcol, 4\\rowh);"
+echo "      \\fill[fill=\\backgroundS] (2\\colw+\\firstcol, 2\\rowh) rectangle (3\\colw+\\firstcol, 3\\rowh);"
+echo "      \\fill[fill=\\backgroundT] (2\\colw+\\firstcol, 1\\rowh) rectangle (3\\colw+\\firstcol, 2\\rowh);"
+echo "      \\fill[fill=\\backgroundU] (2\\colw+\\firstcol, 0\\rowh) rectangle (3\\colw+\\firstcol, 1\\rowh);"
+echo "      % frame"
+echo "      \\draw (0, 0) rectangle (3\\colw+\\firstcol, 7\\rowh);"
+echo "      % horizontal lines"
+echo "      \\draw (0, 7\\rowh) -- (3\\colw+\\firstcol, 7\\rowh);"
+echo "      \\draw (0, 6\\rowh) -- (3\\colw+\\firstcol, 6\\rowh);"
+echo "      \\draw (0, 5\\rowh) -- (3\\colw+\\firstcol, 5\\rowh);"
+echo "      \\draw (0, 4\\rowh) -- (3\\colw+\\firstcol, 4\\rowh);"
+echo "      \\draw (0, 3\\rowh) -- (3\\colw+\\firstcol, 3\\rowh);"
+echo "      \\draw (0, 2\\rowh) -- (3\\colw+\\firstcol, 2\\rowh);"
+echo "      \\draw (0, 1\\rowh) -- (3\\colw+\\firstcol, 1\\rowh);"
+echo "      % vertical lines lines"
+echo "      \\draw (0\\colw+\\firstcol, 0) -- (0\\colw+\\firstcol, 7\\rowh);"
+echo "      \\draw (1\\colw+\\firstcol, 0) -- (1\\colw+\\firstcol, 7\\rowh);"
+echo "      \\draw (2\\colw+\\firstcol, 0) -- (2\\colw+\\firstcol, 7\\rowh);"
+echo "      % day of week"
+echo "      \\node[below right] at (0, 7\\rowh) {\\textbf{Mo}};"
+echo "      \\node[below right] at (0, 6\\rowh) {\\textbf{Di}};"
+echo "      \\node[below right] at (0, 5\\rowh) {\\textbf{Mi}};"
+echo "      \\node[below right] at (0, 4\\rowh) {\\textbf{Do}};"
+echo "      \\node[below right] at (0, 3\\rowh) {\\textbf{Fr}};"
+echo "      \\node[below right] at (0, 2\\rowh) {\\textbf{Sa}};"
+echo "      \\node[below right] at (0, 1\\rowh) {\\textbf{So}};"
+echo "      % first week"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 7\\rowh) {\\dateA};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 6\\rowh) {\\dateB};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 5\\rowh) {\\dateC};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 4\\rowh) {\\dateD};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 3\\rowh) {\\dateE};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 2\\rowh) {\\dateF};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 1\\rowh) {\\dateG};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 7\\rowh) {\\holidayA};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 6\\rowh) {\\holidayB};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 5\\rowh) {\\holidayC};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 4\\rowh) {\\holidayD};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 3\\rowh) {\\holidayE};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 2\\rowh) {\\holidayF};"
+echo "      \\node[below left]  at (1\\colw+\\firstcol, 1\\rowh) {\\holidayG};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 7\\rowh-\\baselineskip) {\\appointmentA};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 6\\rowh-\\baselineskip) {\\appointmentB};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 5\\rowh-\\baselineskip) {\\appointmentC};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 4\\rowh-\\baselineskip) {\\appointmentD};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 3\\rowh-\\baselineskip) {\\appointmentE};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 2\\rowh-\\baselineskip) {\\appointmentF};"
+echo "      \\node[below right] at (0\\colw+\\firstcol, 1\\rowh-\\baselineskip) {\\appointmentG};"
+echo "      % second week"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 7\\rowh) {\\dateH};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 6\\rowh) {\\dateI};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 5\\rowh) {\\dateJ};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 4\\rowh) {\\dateK};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 3\\rowh) {\\dateL};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 2\\rowh) {\\dateM};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 1\\rowh) {\\dateN};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 7\\rowh) {\\holidayH};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 6\\rowh) {\\holidayI};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 5\\rowh) {\\holidayJ};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 4\\rowh) {\\holidayK};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 3\\rowh) {\\holidayL};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 2\\rowh) {\\holidayM};"
+echo "      \\node[below left]  at (2\\colw+\\firstcol, 1\\rowh) {\\holidayN};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 7\\rowh-\\baselineskip) {\\appointmentH};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 6\\rowh-\\baselineskip) {\\appointmentI};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 5\\rowh-\\baselineskip) {\\appointmentJ};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 4\\rowh-\\baselineskip) {\\appointmentK};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 3\\rowh-\\baselineskip) {\\appointmentL};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 2\\rowh-\\baselineskip) {\\appointmentM};"
+echo "      \\node[below right] at (1\\colw+\\firstcol, 1\\rowh-\\baselineskip) {\\appointmentN};"
+echo "      % third week"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 7\\rowh) {\\dateO};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 6\\rowh) {\\dateP};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 5\\rowh) {\\dateQ};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 4\\rowh) {\\dateR};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 3\\rowh) {\\dateS};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 2\\rowh) {\\dateT};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 1\\rowh) {\\dateU};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 7\\rowh) {\\holidayO};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 6\\rowh) {\\holidayP};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 5\\rowh) {\\holidayQ};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 4\\rowh) {\\holidayR};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 3\\rowh) {\\holidayS};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 2\\rowh) {\\holidayT};"
+echo "      \\node[below left]  at (3\\colw+\\firstcol, 1\\rowh) {\\holidayU};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 7\\rowh-\\baselineskip) {\\appointmentO};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 6\\rowh-\\baselineskip) {\\appointmentP};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 5\\rowh-\\baselineskip) {\\appointmentQ};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 4\\rowh-\\baselineskip) {\\appointmentR};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 3\\rowh-\\baselineskip) {\\appointmentS};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 2\\rowh-\\baselineskip) {\\appointmentT};"
+echo "      \\node[below right] at (2\\colw+\\firstcol, 1\\rowh-\\baselineskip) {\\appointmentU};"
+echo "    \\end{tikzpicture}%"
+echo "  \\endgroup"
+echo "}%"
+echo
+echo "% ------------------------------------------------------------------------------"
+echo "\\begin{document}"
+echo "% ------------------------------------------------------------------------------"
+echo "\\sffamily"
+echo "\\centering"
+echo "\\newcommand  {\\firstcol} {2.5em}%"
+echo "\\newlength   {\\rowh}%"
+echo "\\newlength   {\\colw}%"
+echo "\\setlength   {\\rowh}     {0.142\\textheight}%"
+echo "\\setlength   {\\colw}     {\\textwidth}%"
+echo "\\addtolength {\\colw}     {-\\firstcol}%"
+echo "\\setlength   {\\colw}     {0.333\\colw}%"
+echo "\\colorlet    {saturday}  {black!8!white}%"
+echo "\\colorlet    {sunday}    {black!16!white}%"
+
+# check initial date
+read YYYY MM DD MN DN <<< "$(date -d "$LOOPDATE" +"%Y %m %d %B %a")"
+
+# set initial offset
+GRIDOFFSET=0
+
+# set real offset
+case "$DN" in
+  "Mo") GRIDOFFSET=0 ;;
+  "Di") GRIDOFFSET=1 ;;
+  "Mi") GRIDOFFSET=2 ;;
+  "Do") GRIDOFFSET=3 ;;
+  "Fr") GRIDOFFSET=4 ;;
+  "Sa") GRIDOFFSET=5 ;;
+  "So") GRIDOFFSET=6 ;;
+esac
+
+# number of operated day in this grid
+GRIDNUMBER=0
+
+# start first grid
+echo "\\begin{grid}%"
+
+# iterate days
+while true
+do
+
+  # increase day counter
+  (( GRIDNUMBER += 1 ))
+
+  # last cell used
+  if (( GRIDOFFSET + GRIDNUMBER > 21 )) ; then
+
+    # finish current grid
+    echo "\\end{grid}%"
+
+    # reset counter
+    GRIDOFFSET=0
+    GRIDNUMBER=1
+
+    # start next page
+    echo "\\clearpage"
+
+    # start next grid
+    echo "\\begin{grid}%"
+
+  fi
+
+  # get splitted date
+  read YYYY MM DD DAY MN DN <<< "$(date -d "$LOOPDATE" +"%Y %m %d %-d %B %a")"
+
+  # 'holiday' and 'appointment' file
+  HFILE="h-$YYYY-$MM-$DD"
+  AFILE="a-$YYYY-$MM-$DD"
+
+  # get related ASCII character
+  ASCIIINDEX=$(printf "\x$(printf "%x" $((64 + GRIDOFFSET + GRIDNUMBER)))")
+
+  # redefine date command
+  echo "  \\renewcommand{\\date$ASCIIINDEX}{$DAY. $MN}%"
+
+  # set default background color
+  BCOLOR=""
+
+  # weekend
+  [ "$DN" == "Sa" ] && BCOLOR="saturday"
+  [ "$DN" == "So" ] && BCOLOR="sunday"
+
+  # check if 'holiday' file is present
+  if [ -f "$HFILE" ] ; then
+
+    # use special color
+    BCOLOR="sunday"
+
+    # redefine holiday command
+    echo "  \\renewcommand{\\holiday$ASCIIINDEX}{\\input{$HFILE}}%"
+
+  fi
+
+  # check if 'appointment' file is present
+  if [ -f "$AFILE" ] ; then
+
+    # redefine appointment command
+    echo "  \\renewcommand{\\appointment$ASCIIINDEX}{\\begin{minipage}{0.9\\colw}\\small\\input{$AFILE}\\end{minipage}}%"
+
+  fi
+
+  # check background color
+  if [ -n "$BCOLOR" ] ; then
+
+    # redefine holiday command
+    echo "  \\renewcommand{\\background$ASCIIINDEX}{$BCOLOR}%"
+
+  fi
+
+  # all days printed
+  [ "$LOOPDATE" == "$STOPDATE" ] && break
+
+  # add one day
+  LOOPDATE=$(date -d "$LOOPDATE 1 day" +%F)
+
+done
+
+# finish last grid
+echo "\\end{grid}%"
+
+# finish tex file
+echo "% ------------------------------------------------------------------------------"
+echo "\\end{document}"
+echo "% ------------------------------------------------------------------------------"
+
+# signalize success
+exit 0
+
