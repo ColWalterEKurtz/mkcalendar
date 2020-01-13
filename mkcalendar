@@ -490,8 +490,18 @@ do
   # get related ASCII character
   ASCIIINDEX=$(printf "\x$(printf "%x" $((64 + GRIDOFFSET + GRIDNUMBER)))")
 
-  # redefine date command
-  echo "  \\renewcommand{\\date$ASCIIINDEX}{$DAY. $MN}%"
+  # check if new month starts
+  if (( DAY == 1 )) ; then
+
+    # redefine date command
+    echo "  \\renewcommand{\\date$ASCIIINDEX}{\\textbf{$DAY. $MN}}%"
+
+  else
+
+    # redefine date command
+    echo "  \\renewcommand{\\date$ASCIIINDEX}{$DAY. $MN}%"
+
+  fi
 
   # set default background color
   BCOLOR=""
